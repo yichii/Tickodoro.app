@@ -58,3 +58,24 @@ A clean, minimal Pomodoro timer (Pomofocus-style) with one standout detail: a hy
 - Additional tick sound variations (swap filter/envelope params — no new assets needed)
 - Volume slider
 - Weekly/monthly stats view
+
+---
+
+## Theme + Sound Packs (post-MVP, next up)
+
+Ship themes and tick sounds as curated **paired presets**, not independent mix-and-match options. Keeps the UI simple (one "pack" selector, not two separate dropdowns) and halves the QA surface.
+
+### Pack 1 — Study Hall (existing v1 default)
+- **Colors:** Focus `#E76F51` / bg `#FFF1EE` · Short Break `#2A9D8F` / bg `#EAF7F5` · Long Break `#457B9D` / bg `#EEF4F8`
+- **Tick:** bandpass center ~2800Hz, Tock ~2200Hz, Q=8, decay 45ms — dry, percussive, classic wall clock
+
+### Pack 2 — Midnight Focus (dark mode)
+- **Colors:** Focus amber `#F2A65A` · Short Break mint `#6FCF97` · Long Break periwinkle `#8E9AAF` — all on bg `#1A1A2E`, text `#EDEDED`
+- **Tick:** bandpass center ~1400Hz, Tock ~1100Hz, decay ~70ms, softer attack — muffled, heartbeat-like, late-night-library feel
+
+### Pack 3 — Watchmaker (sharp/mechanical)
+- **Colors:** Focus graphite `#3D3D3D` · Short Break sage `#8FA998` · Long Break steel blue `#5C7C99` — all on bg `#F7F7F5`, silver `#C4C4C4` accents/dividers instead of tinted backgrounds
+- **Tick:** bandpass center ~3400Hz, Tock ~2900Hz, decay 30ms, sharper attack, wider tick/tock frequency gap — crisp, precise, fine-instrument feel
+
+### Implementation note
+Each pack should be a single config object (CSS variable set + filter/envelope params) so switching is a matter of swapping one object, not touching component logic. No new audio assets needed — every pack reuses the same synthesis engine from the MVP, just different parameters.

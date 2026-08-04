@@ -9,7 +9,8 @@ const STORAGE_KEYS = {
   tasks: 'tickodoro.tasks',
   muted: 'tickodoro.muted',
   stats: 'tickodoro.stats',
-  activeTask: 'tickodoro.activeTaskId'
+  activeTask: 'tickodoro.activeTaskId',
+  pack: 'tickodoro.pack'
 };
 
 function loadJSON(key, fallback) {
@@ -24,6 +25,64 @@ function loadJSON(key, fallback) {
 function saveJSON(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
+
+/* ---------------------------------------------------------------------- *
+ *  Theme + sound packs
+ *
+ *  Each pack is one config object: a CSS-variable set per timer mode plus
+ *  the tick-engine's filter/envelope params. Switching packs is just
+ *  swapping which object applyTheme()/tickEngine.setParams() read from —
+ *  no component logic changes per pack.
+ * ---------------------------------------------------------------------- */
+
+const THEME_PACKS = {
+  studyHall: {
+    label: 'Study Hall',
+    modes: {
+      focus: { accent: '#E76F51', bg: '#FFF1EE' },
+      short: { accent: '#2A9D8F', bg: '#EAF7F5' },
+      long: { accent: '#457B9D', bg: '#EEF4F8' }
+    },
+    text: '#2C2420',
+    textMuted: '#6B5F58',
+    cardBg: '#FFFFFF',
+    border: 'rgba(0, 0, 0, 0.08)',
+    tick: { tickFreq: 2800, tockFreq: 2200, q: 8, attack: 0.002, decay: 0.045, peak: 0.2 }
+  },
+  midnightFocus: {
+    label: 'Midnight Focus',
+    modes: {
+      focus: { accent: '#F2A65A', bg: '#1A1A2E' },
+      short: { accent: '#6FCF97', bg: '#1A1A2E' },
+      long: { accent: '#8E9AAF', bg: '#1A1A2E' }
+    },
+    text: '#EDEDED',
+    textMuted: '#A6A6BF',
+    cardBg: '#22223B',
+    border: 'rgba(255, 255, 255, 0.1)',
+    // softer attack + longer decay + lower Q (broader passband) = the
+    // muffled, heartbeat-like feel described in the brief
+    tick: { tickFreq: 1400, tockFreq: 1100, q: 2.2, attack: 0.008, decay: 0.07, peak: 0.2 }
+  },
+  watchmaker: {
+    label: 'Watchmaker',
+    modes: {
+      focus: { accent: '#3D3D3D', bg: '#F7F7F5' },
+      short: { accent: '#8FA998', bg: '#F7F7F5' },
+      long: { accent: '#5C7C99', bg: '#F7F7F5' }
+    },
+    text: '#2C2C2C',
+    textMuted: '#7A7A7A',
+    cardBg: '#FFFFFF',
+    // silver accents/dividers instead of tinted backgrounds
+    border: '#C4C4C4',
+    // sharper attack + shorter decay + higher Q (narrower passband) = the
+    // crisp, precise, fine-instrument feel described in the brief
+    tick: { tickFreq: 3400, tockFreq: 2900, q: 10, attack: 0.001, decay: 0.03, peak: 0.2 }
+  }
+};
+
+const DEFAULT_PACK_ID = 'studyHall';
 
 /* ---------------------------------------------------------------------- *
  *  Ticking sound engine
@@ -46,6 +105,7 @@ class TickEngine {
     this.running = false;
     this.muted = false;
     this.activeNodes = [];
+    this.params = THEME_PACKS[DEFAULT_PACK_ID].tick;
 
     this.LOOKAHEAD_MS = 25;
     this.SCHEDULE_AHEAD_TIME = 1.2; // seconds; must exceed background-tab throttle interval
@@ -60,6 +120,12 @@ class TickEngine {
 
   setMuted(muted) {
     this.muted = muted;
+  }
+
+  // Swaps the active pack's filter/envelope params. Just numbers — safe to
+  // call any time, including before the AudioContext exists.
+  setParams(params) {
+    this.params = params;
   }
 
   start() {
@@ -99,8 +165,10 @@ class TickEngine {
   _playTick(time, isTick) {
     if (this.muted) return;
     const ctx = this.audioCtx;
+    const { tickFreq, tockFreq, q, attack, decay, peak } = this.params;
 
-    const duration = 0.07;
+    const margin = 0.02;
+    const duration = attack + decay + margin;
     const bufferSize = Math.ceil(ctx.sampleRate * duration);
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -113,13 +181,10 @@ class TickEngine {
 
     const bandpass = ctx.createBiquadFilter();
     bandpass.type = 'bandpass';
-    bandpass.frequency.value = isTick ? 2200 : 1500;
-    bandpass.Q.value = 3.2;
+    bandpass.frequency.value = isTick ? tickFreq : tockFreq;
+    bandpass.Q.value = q;
 
     const envelope = ctx.createGain();
-    const attack = 0.002;
-    const decay = 0.05;
-    const peak = 0.2;
 
     envelope.gain.setValueAtTime(0, time);
     envelope.gain.linearRampToValueAtTime(peak, time + attack);
@@ -129,7 +194,7 @@ class TickEngine {
     bandpass.connect(envelope);
     envelope.connect(ctx.destination);
 
-    const stopAt = time + attack + decay + 0.02;
+    const stopAt = time + duration;
     noise.start(time);
     noise.stop(stopAt);
 
@@ -177,6 +242,9 @@ let tasks = loadJSON(STORAGE_KEYS.tasks, []);
 let activeTaskId = loadJSON(STORAGE_KEYS.activeTask, null);
 let stats = loadJSON(STORAGE_KEYS.stats, { date: todayKey(), count: 0 });
 
+const savedPackId = loadJSON(STORAGE_KEYS.pack, DEFAULT_PACK_ID);
+let currentPackId = THEME_PACKS[savedPackId] ? savedPackId : DEFAULT_PACK_ID;
+
 let currentMode = 'focus';
 let focusSessionsCompleted = 0; // used to decide short vs. long break
 let remainingSeconds = settings[currentMode] * 60;
@@ -185,6 +253,7 @@ let endTimestamp = null; // epoch ms; remaining time is derived from this, not d
 let displayIntervalId = null;
 
 tickEngine.setMuted(muted);
+tickEngine.setParams(THEME_PACKS[currentPackId].tick);
 
 function todayKey() {
   const d = new Date();
@@ -216,6 +285,14 @@ const taskInput = document.getElementById('task-input');
 const taskEstInput = document.getElementById('task-est');
 const taskListEl = document.getElementById('task-list');
 
+const packPicker = {
+  wrap: document.querySelector('.pack-picker'),
+  btn: document.getElementById('pack-picker-btn'),
+  valueEl: document.getElementById('pack-picker-value'),
+  list: document.getElementById('pack-picker-list'),
+  options: Array.from(document.querySelectorAll('.pack-picker-option'))
+};
+
 const settingsBtn = document.getElementById('settings-btn');
 const settingsDialog = document.getElementById('settings-dialog');
 const settingsForm = document.querySelector('.settings-form');
@@ -243,6 +320,29 @@ function renderMode() {
   modeTabs.forEach((tab) => {
     const isActive = tab.dataset.mode === currentMode;
     tab.setAttribute('aria-selected', String(isActive));
+  });
+  applyTheme();
+}
+
+// Pushes the active pack's colors for the current mode onto the CSS
+// custom properties every themed rule in style.css reads from.
+function applyTheme() {
+  const pack = THEME_PACKS[currentPackId];
+  const modeColors = pack.modes[currentMode];
+  const root = document.documentElement.style;
+  root.setProperty('--accent', modeColors.accent);
+  root.setProperty('--bg', modeColors.bg);
+  root.setProperty('--text', pack.text);
+  root.setProperty('--text-muted', pack.textMuted);
+  root.setProperty('--card-bg', pack.cardBg);
+  root.setProperty('--border', pack.border);
+}
+
+function renderPackSelect() {
+  const pack = THEME_PACKS[currentPackId];
+  packPicker.valueEl.textContent = pack.label;
+  packPicker.options.forEach((opt) => {
+    opt.setAttribute('aria-selected', String(opt.dataset.pack === currentPackId));
   });
 }
 
@@ -437,6 +537,86 @@ muteToggle.addEventListener('click', () => {
 });
 
 /* ---------------------------------------------------------------------- *
+ *  Event wiring — theme + sound pack
+ * ---------------------------------------------------------------------- */
+
+function selectPack(id) {
+  if (!THEME_PACKS[id]) return;
+  currentPackId = id;
+  saveJSON(STORAGE_KEYS.pack, currentPackId);
+  applyTheme();
+  tickEngine.setParams(THEME_PACKS[currentPackId].tick);
+  renderPackSelect();
+}
+
+function setFocusedPackOption(option) {
+  packPicker.options.forEach((opt) => opt.classList.toggle('focused', opt === option));
+  option.focus();
+}
+
+function openPackList() {
+  packPicker.list.hidden = false;
+  packPicker.btn.setAttribute('aria-expanded', 'true');
+  const selected = packPicker.options.find((opt) => opt.dataset.pack === currentPackId) || packPicker.options[0];
+  setFocusedPackOption(selected);
+}
+
+function closePackList({ refocusButton = false } = {}) {
+  packPicker.list.hidden = true;
+  packPicker.btn.setAttribute('aria-expanded', 'false');
+  packPicker.options.forEach((opt) => opt.classList.remove('focused'));
+  if (refocusButton) packPicker.btn.focus();
+}
+
+packPicker.btn.addEventListener('click', () => {
+  const isOpen = packPicker.btn.getAttribute('aria-expanded') === 'true';
+  if (isOpen) {
+    closePackList();
+  } else {
+    openPackList();
+  }
+});
+
+packPicker.options.forEach((opt) => {
+  opt.addEventListener('click', () => {
+    selectPack(opt.dataset.pack);
+    closePackList({ refocusButton: true });
+  });
+});
+
+packPicker.list.addEventListener('keydown', (e) => {
+  const currentIndex = packPicker.options.findIndex((opt) => opt.classList.contains('focused'));
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = packPicker.options[(currentIndex + 1) % packPicker.options.length];
+    setFocusedPackOption(next);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = packPicker.options[(currentIndex - 1 + packPicker.options.length) % packPicker.options.length];
+    setFocusedPackOption(prev);
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    const focused = packPicker.options[currentIndex];
+    if (focused) {
+      selectPack(focused.dataset.pack);
+      closePackList({ refocusButton: true });
+    }
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closePackList({ refocusButton: true });
+  } else if (e.key === 'Tab') {
+    closePackList();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!packPicker.wrap.contains(e.target)) {
+    closePackList();
+  }
+});
+
+/* ---------------------------------------------------------------------- *
  *  Event wiring — tasks
  * ---------------------------------------------------------------------- */
 
@@ -531,6 +711,7 @@ settingsForm.addEventListener('submit', () => {
  * ---------------------------------------------------------------------- */
 
 function init() {
+  renderPackSelect();
   renderMode();
   renderCountdown();
   renderStartPauseButton();

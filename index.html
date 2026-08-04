@@ -8,6 +8,26 @@
 </head>
 <body data-mode="focus">
 
+  <div class="pack-picker">
+    <span class="pack-picker-label" id="pack-picker-label">Pack</span>
+    <button type="button"
+            id="pack-picker-btn"
+            class="pack-picker-btn"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-labelledby="pack-picker-label pack-picker-value">
+      <span id="pack-picker-value" class="pack-picker-value">Study Hall</span>
+      <svg class="pack-picker-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    </button>
+    <ul id="pack-picker-list" class="pack-picker-list" role="listbox" aria-labelledby="pack-picker-label" hidden>
+      <li role="option" class="pack-picker-option" data-pack="studyHall" tabindex="-1" aria-selected="true">Study Hall</li>
+      <li role="option" class="pack-picker-option" data-pack="midnightFocus" tabindex="-1" aria-selected="false">Midnight Focus</li>
+      <li role="option" class="pack-picker-option" data-pack="watchmaker" tabindex="-1" aria-selected="false">Watchmaker</li>
+    </ul>
+  </div>
+
   <button id="mute-toggle" class="mute-toggle" aria-pressed="false" aria-label="Mute ticking sound">
     <svg class="icon-unmuted" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
       <path d="M3 9v6h4l5 5V4L7 9H3z"/>
