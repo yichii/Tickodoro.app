@@ -33,9 +33,30 @@ body {
   padding: 48px 20px 80px;
 }
 
-.app {
+.page {
   width: 100%;
   max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-icons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app {
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -233,8 +254,7 @@ body {
 }
 
 .mute-toggle, .settings-toggle {
-  position: fixed;
-  top: 20px;
+  flex-shrink: 0;
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -247,12 +267,7 @@ body {
   cursor: pointer;
 }
 
-.mute-toggle {
-  right: 20px;
-}
-
 .settings-toggle {
-  right: 70px;
   font-size: 1.1rem;
 }
 
@@ -318,10 +333,7 @@ body {
 }
 
 .pack-picker {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 30;
+  position: relative;
 }
 
 .pack-picker-label {
@@ -370,10 +382,18 @@ body {
   transform: rotate(180deg);
 }
 
+.pack-picker-value {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pack-picker-list {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
+  z-index: 50;
   min-width: 190px;
   margin: 0;
   padding: 6px;
@@ -408,6 +428,42 @@ body {
   background: var(--accent);
   color: #fff;
   font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 24px 16px 60px;
+  }
+
+  .page {
+    gap: 20px;
+  }
+
+  .pack-picker-label {
+    font-size: 0.65rem;
+  }
+
+  .pack-picker-btn {
+    height: 36px;
+    padding: 0 10px;
+    font-size: 0.8rem;
+  }
+
+  .mute-toggle, .settings-toggle {
+    width: 36px;
+    height: 36px;
+  }
+
+  .mode-tabs {
+    width: 100%;
+  }
+
+  .mode-tab {
+    flex: 1;
+    padding: 9px 6px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 400px) {
