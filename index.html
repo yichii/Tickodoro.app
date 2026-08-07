@@ -32,17 +32,20 @@
 
       <div class="header-icons">
         <button id="settings-btn" class="settings-toggle" aria-label="Settings">⚙</button>
-        <button id="mute-toggle" class="mute-toggle" aria-pressed="false" aria-label="Mute ticking sound">
-          <svg class="icon-unmuted" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-            <path d="M3 9v6h4l5 5V4L7 9H3z"/>
-            <path d="M16.5 12c0-1.77-.77-3.29-2-4.24v8.48c1.23-.95 2-2.47 2-4.24z"/>
-            <path d="M14.5 3.23v2.06c2.89 1.03 5 3.78 5 7.06s-2.11 6.02-5 7.06v2.06c4.01-1.09 7-4.76 7-9.12s-2.99-8.03-7-9.12z"/>
-          </svg>
-          <svg class="icon-muted" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-            <path d="M3 9v6h4l5 5V4L7 9H3z"/>
-            <path d="M19 12l3-3-1.4-1.4-3 3-3-3L13.2 9l3 3-3 3 1.4 1.4 3-3 3 3L21 15l-3-3z"/>
-          </svg>
-        </button>
+        <div class="volume-control">
+          <button id="mute-toggle" class="mute-toggle" aria-pressed="false" aria-label="Mute ticking sound">
+            <svg class="icon-unmuted" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+              <path d="M3 9v6h4l5 5V4L7 9H3z"/>
+              <path d="M16.5 12c0-1.77-.77-3.29-2-4.24v8.48c1.23-.95 2-2.47 2-4.24z"/>
+              <path d="M14.5 3.23v2.06c2.89 1.03 5 3.78 5 7.06s-2.11 6.02-5 7.06v2.06c4.01-1.09 7-4.76 7-9.12s-2.99-8.03-7-9.12z"/>
+            </svg>
+            <svg class="icon-muted" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+              <path d="M3 9v6h4l5 5V4L7 9H3z"/>
+              <path d="M19 12l3-3-1.4-1.4-3 3-3-3L13.2 9l3 3-3 3 1.4 1.4 3-3 3 3L21 15l-3-3z"/>
+            </svg>
+          </button>
+          <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="100" step="1" aria-label="Ticking sound volume">
+        </div>
       </div>
     </header>
 

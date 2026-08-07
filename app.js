@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   settings: 'tickodoro.settings',
   tasks: 'tickodoro.tasks',
   muted: 'tickodoro.muted',
+  volume: 'tickodoro.volume',
   stats: 'tickodoro.stats',
   activeTask: 'tickodoro.activeTaskId',
   pack: 'tickodoro.pack'
@@ -104,6 +105,7 @@ class TickEngine {
     this.tickCount = 0;
     this.running = false;
     this.muted = false;
+    this.volume = 1;
     this.activeNodes = [];
     this.params = THEME_PACKS[DEFAULT_PACK_ID].tick;
 
@@ -120,6 +122,11 @@ class TickEngine {
 
   setMuted(muted) {
     this.muted = muted;
+  }
+
+  // volume is a 0..1 fraction, multiplied into each tick's peak gain.
+  setVolume(volume) {
+    this.volume = volume;
   }
 
   // Swaps the active pack's filter/envelope params. Just numbers — safe to
@@ -187,7 +194,7 @@ class TickEngine {
     const envelope = ctx.createGain();
 
     envelope.gain.setValueAtTime(0, time);
-    envelope.gain.linearRampToValueAtTime(peak, time + attack);
+    envelope.gain.linearRampToValueAtTime(peak * this.volume, time + attack);
     envelope.gain.exponentialRampToValueAtTime(0.0001, time + attack + decay);
 
     noise.connect(bandpass);
@@ -238,6 +245,7 @@ const DEFAULT_SETTINGS = { focus: 25, short: 5, long: 15 };
 
 let settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(STORAGE_KEYS.settings, {}));
 let muted = loadJSON(STORAGE_KEYS.muted, false);
+let volume = Math.max(0, Math.min(100, loadJSON(STORAGE_KEYS.volume, 100)));
 let tasks = loadJSON(STORAGE_KEYS.tasks, []);
 let activeTaskId = loadJSON(STORAGE_KEYS.activeTask, null);
 let stats = loadJSON(STORAGE_KEYS.stats, { date: todayKey(), count: 0 });
@@ -253,6 +261,7 @@ let endTimestamp = null; // epoch ms; remaining time is derived from this, not d
 let displayIntervalId = null;
 
 tickEngine.setMuted(muted);
+tickEngine.setVolume(volume / 100);
 tickEngine.setParams(THEME_PACKS[currentPackId].tick);
 
 function todayKey() {
@@ -278,6 +287,7 @@ const startPauseBtn = document.getElementById('start-pause-btn');
 const resetBtn = document.getElementById('reset-btn');
 const modeTabs = Array.from(document.querySelectorAll('.mode-tab'));
 const muteToggle = document.getElementById('mute-toggle');
+const volumeSlider = document.getElementById('volume-slider');
 const dailyCountEl = document.getElementById('daily-count');
 
 const taskForm = document.getElementById('task-form');
@@ -352,6 +362,10 @@ function renderStartPauseButton() {
 
 function renderMute() {
   muteToggle.setAttribute('aria-pressed', String(muted));
+}
+
+function renderVolume() {
+  volumeSlider.value = String(volume);
 }
 
 function renderStats() {
@@ -536,6 +550,12 @@ muteToggle.addEventListener('click', () => {
   }
 });
 
+volumeSlider.addEventListener('input', () => {
+  volume = Math.max(0, Math.min(100, parseInt(volumeSlider.value, 10) || 0));
+  saveJSON(STORAGE_KEYS.volume, volume);
+  tickEngine.setVolume(volume / 100);
+});
+
 /* ---------------------------------------------------------------------- *
  *  Event wiring — theme + sound pack
  * ---------------------------------------------------------------------- */
@@ -716,6 +736,7 @@ function init() {
   renderCountdown();
   renderStartPauseButton();
   renderMute();
+  renderVolume();
   renderStats();
   renderTasks();
 }
