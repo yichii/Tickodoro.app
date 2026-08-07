@@ -48,7 +48,8 @@ const THEME_PACKS = {
     textMuted: '#6B5F58',
     cardBg: '#FFFFFF',
     border: 'rgba(0, 0, 0, 0.08)',
-    tick: { tickFreq: 2800, tockFreq: 2200, q: 8, attack: 0.002, decay: 0.045, peak: 0.2 }
+    // plain bandpass noise click = a soft, warm library tick
+    tick: { synth: 'noise', filterType: 'bandpass', tickFreq: 2800, tockFreq: 2200, q: 8, attack: 0.002, decay: 0.045, peak: 0.2 }
   },
   midnightFocus: {
     label: 'Midnight Focus',
@@ -77,9 +78,43 @@ const THEME_PACKS = {
     cardBg: '#FFFFFF',
     // silver accents/dividers instead of tinted backgrounds
     border: '#C4C4C4',
-    // sharper attack + shorter decay + higher Q (narrower passband) = the
-    // crisp, precise, fine-instrument feel described in the brief
-    tick: { tickFreq: 3400, tockFreq: 2900, q: 10, attack: 0.001, decay: 0.03, peak: 0.2 }
+    // sharper attack + shorter decay + higher Q (narrower passband), plus a
+    // highpass instead of bandpass filter, for a crisp, precise, fine-instrument feel
+    tick: { synth: 'noise', filterType: 'highpass', tickFreq: 1900, tockFreq: 1600, q: 10, attack: 0.001, decay: 0.03, peak: 0.2 }
+  },
+  forestRetreat: {
+    label: 'Forest Retreat',
+    modes: {
+      focus: { accent: '#4A7C59', bg: '#F1F5EC' },
+      short: { accent: '#C9A227', bg: '#FAF6E8' },
+      long: { accent: '#5B7FA6', bg: '#EDF2F7' }
+    },
+    text: '#2B3328',
+    textMuted: '#6B7566',
+    cardBg: '#FFFFFF',
+    border: 'rgba(74, 124, 89, 0.15)',
+    // hybrid voice: a lowpass noise rustle layered with a low sine thump,
+    // like a knuckle knocking on wood
+    tick: {
+      synth: 'hybrid', filterType: 'lowpass',
+      tickFreq: 1800, tockFreq: 1500, q: 3, attack: 0.004, decay: 0.05, peak: 0.16,
+      thump: { freq: 95, waveform: 'sine', attack: 0.001, decay: 0.09, peak: 0.14 }
+    }
+  },
+  neonArcade: {
+    label: 'Neon Arcade',
+    modes: {
+      focus: { accent: '#FF2E63', bg: '#0D0221' },
+      short: { accent: '#08D9D6', bg: '#0D0221' },
+      long: { accent: '#EAEA00', bg: '#0D0221' }
+    },
+    text: '#F5F5F5',
+    textMuted: '#9A8FBF',
+    cardBg: '#1A0B3D',
+    border: 'rgba(255, 46, 99, 0.25)',
+    // ordinary bandpass noise click, tuned a bit brighter/tighter than
+    // Study Hall so it's still distinct but not electronic-sounding
+    tick: { synth: 'noise', filterType: 'bandpass', tickFreq: 3000, tockFreq: 2500, q: 12, attack: 0.001, decay: 0.035, peak: 0.2 }
   }
 };
 
@@ -165,17 +200,47 @@ class TickEngine {
     this.schedulerId = setInterval(tick, this.LOOKAHEAD_MS);
   }
 
-  // Synthesizes one dry, percussive "tick" or "tock": a short burst of
-  // white noise through a bandpass filter with a fast attack / short decay
-  // envelope. "tick" and "tock" use different filter center frequencies so
-  // the two alternate like a real escapement's left/right swing.
+  // Synthesizes one "tick" or "tock". Each pack picks a synth voice via
+  // params.synth: a filtered-noise click ('noise', the default), an
+  // oscillator blip ('tone'), or both layered together ('hybrid'). "tick"
+  // and "tock" use different center frequencies so the two alternate like
+  // a real escapement's left/right swing.
   _playTick(time, isTick) {
     if (this.muted) return;
     const ctx = this.audioCtx;
-    const { tickFreq, tockFreq, q, attack, decay, peak } = this.params;
+    const p = this.params;
+    const synth = p.synth || 'noise';
 
-    const margin = 0.02;
-    const duration = attack + decay + margin;
+    const voices = [];
+    if (synth === 'tone') {
+      voices.push(this._makeToneVoice(ctx, time, isTick, p));
+    } else if (synth === 'hybrid') {
+      voices.push(this._makeNoiseVoice(ctx, time, isTick, p));
+      voices.push(this._makeToneVoice(ctx, time, isTick, {
+        tickFreq: p.thump.freq, tockFreq: p.thump.freq, waveform: p.thump.waveform,
+        attack: p.thump.attack, decay: p.thump.decay, peak: p.thump.peak
+      }));
+    } else {
+      voices.push(this._makeNoiseVoice(ctx, time, isTick, p));
+    }
+
+    const record = { voices };
+    this.activeNodes.push(record);
+    const cleanup = () => {
+      const idx = this.activeNodes.indexOf(record);
+      if (idx !== -1) this.activeNodes.splice(idx, 1);
+      for (const v of voices) {
+        try { v.source.disconnect(); v.gain.disconnect(); if (v.filter) v.filter.disconnect(); } catch (e) { /* already gone */ }
+      }
+    };
+    voices[voices.length - 1].source.onended = cleanup;
+  }
+
+  // Short burst of white noise through a bandpass/highpass/lowpass filter
+  // with a fast attack / short decay envelope — a dry, percussive click.
+  _makeNoiseVoice(ctx, time, isTick, params) {
+    const { tickFreq, tockFreq, q, attack, decay, peak, filterType } = params;
+    const duration = attack + decay + 0.02;
     const bufferSize = Math.ceil(ctx.sampleRate * duration);
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -186,32 +251,52 @@ class TickEngine {
     const noise = ctx.createBufferSource();
     noise.buffer = buffer;
 
-    const bandpass = ctx.createBiquadFilter();
-    bandpass.type = 'bandpass';
-    bandpass.frequency.value = isTick ? tickFreq : tockFreq;
-    bandpass.Q.value = q;
+    const filter = ctx.createBiquadFilter();
+    filter.type = filterType || 'bandpass';
+    filter.frequency.value = isTick ? tickFreq : tockFreq;
+    filter.Q.value = q;
 
     const envelope = ctx.createGain();
-
     envelope.gain.setValueAtTime(0, time);
     envelope.gain.linearRampToValueAtTime(peak * this.volume, time + attack);
     envelope.gain.exponentialRampToValueAtTime(0.0001, time + attack + decay);
 
-    noise.connect(bandpass);
-    bandpass.connect(envelope);
+    noise.connect(filter);
+    filter.connect(envelope);
     envelope.connect(ctx.destination);
 
-    const stopAt = time + duration;
     noise.start(time);
-    noise.stop(stopAt);
+    noise.stop(time + duration);
 
-    const record = { source: noise, gain: envelope };
-    this.activeNodes.push(record);
-    noise.onended = () => {
-      const idx = this.activeNodes.indexOf(record);
-      if (idx !== -1) this.activeNodes.splice(idx, 1);
-      try { noise.disconnect(); bandpass.disconnect(); envelope.disconnect(); } catch (e) { /* already gone */ }
-    };
+    return { source: noise, gain: envelope, filter };
+  }
+
+  // Oscillator blip with an optional falling pitch, for an electronic
+  // rather than percussive character.
+  _makeToneVoice(ctx, time, isTick, params) {
+    const { tickFreq, tockFreq, waveform, pitchDrop, attack, decay, peak } = params;
+    const duration = attack + decay + 0.02;
+    const freq = isTick ? tickFreq : tockFreq;
+
+    const osc = ctx.createOscillator();
+    osc.type = waveform || 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+    if (pitchDrop) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(freq - pitchDrop, 40), time + attack + decay);
+    }
+
+    const envelope = ctx.createGain();
+    envelope.gain.setValueAtTime(0, time);
+    envelope.gain.linearRampToValueAtTime(peak * this.volume, time + attack);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, time + attack + decay);
+
+    osc.connect(envelope);
+    envelope.connect(ctx.destination);
+
+    osc.start(time);
+    osc.stop(time + duration);
+
+    return { source: osc, gain: envelope };
   }
 
   // Kills any in-flight or future-scheduled tick immediately so pause /
@@ -219,14 +304,16 @@ class TickEngine {
   _silenceImmediately() {
     if (!this.audioCtx) return;
     const now = this.audioCtx.currentTime;
-    for (const node of this.activeNodes.slice()) {
-      try {
-        node.gain.gain.cancelScheduledValues(now);
-        node.gain.gain.setValueAtTime(0, now);
-      } catch (e) { /* ignore */ }
-      try {
-        node.source.stop(now);
-      } catch (e) { /* already stopped or never started */ }
+    for (const record of this.activeNodes.slice()) {
+      for (const v of record.voices) {
+        try {
+          v.gain.gain.cancelScheduledValues(now);
+          v.gain.gain.setValueAtTime(0, now);
+        } catch (e) { /* ignore */ }
+        try {
+          v.source.stop(now);
+        } catch (e) { /* already stopped or never started */ }
+      }
     }
     this.activeNodes = [];
   }
