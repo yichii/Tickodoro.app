@@ -658,6 +658,15 @@ volumeSlider.addEventListener('input', () => {
   volume = Math.max(0, Math.min(100, parseInt(volumeSlider.value, 10) || 0));
   saveJSON(STORAGE_KEYS.volume, volume);
   tickEngine.setVolume(volume / 100);
+  if (muted) {
+    muted = false;
+    saveJSON(STORAGE_KEYS.muted, false);
+    tickEngine.setMuted(false);
+    renderMute();
+    if (timerRunning && currentMode === 'focus' && audioCtx) {
+      tickEngine.start();
+    }
+  }
 });
 
 /* ---------------------------------------------------------------------- *
