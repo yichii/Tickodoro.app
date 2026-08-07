@@ -1,0 +1,13 @@
+{
+  "name": "Tickodoro — Pomodoro Timer",
+  "short_name": "Tickodoro",
+  "description": "A hypnotic ticking-clock Pomodoro timer with task tracking, for focused study and deep work.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF1EE",
+  "theme_color": "#E76F51",
+  "icons": [
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

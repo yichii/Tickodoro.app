@@ -115,6 +115,21 @@ const THEME_PACKS = {
     // ordinary bandpass noise click, tuned a bit brighter/tighter than
     // Study Hall so it's still distinct but not electronic-sounding
     tick: { synth: 'noise', filterType: 'bandpass', tickFreq: 3000, tockFreq: 2500, q: 12, attack: 0.001, decay: 0.035, peak: 0.2 }
+  },
+  catCafe: {
+    label: 'Cat Café',
+    modes: {
+      focus: { accent: '#D97757', bg: '#FFF7ED' },
+      short: { accent: '#8B6F47', bg: '#FBF3E7' },
+      long: { accent: '#6B5B95', bg: '#F3F0F9' }
+    },
+    text: '#3D2B1F',
+    textMuted: '#8C7B6B',
+    cardBg: '#FFFFFF',
+    border: 'rgba(140, 100, 60, 0.15)',
+    // ordinary muffled noise click, same voice family as Midnight Focus —
+    // deliberately not a meow/paw sound, just a cozy soft tick
+    tick: { synth: 'noise', filterType: 'lowpass', tickFreq: 2000, tockFreq: 1700, q: 5, attack: 0.003, decay: 0.05, peak: 0.18 }
   }
 };
 
@@ -376,6 +391,7 @@ const modeTabs = Array.from(document.querySelectorAll('.mode-tab'));
 const muteToggle = document.getElementById('mute-toggle');
 const volumeSlider = document.getElementById('volume-slider');
 const dailyCountEl = document.getElementById('daily-count');
+const catMascotEl = document.getElementById('cat-mascot');
 
 const taskForm = document.getElementById('task-form');
 const taskInput = document.getElementById('task-input');
@@ -433,6 +449,7 @@ function applyTheme() {
   root.setProperty('--text-muted', pack.textMuted);
   root.setProperty('--card-bg', pack.cardBg);
   root.setProperty('--border', pack.border);
+  catMascotEl.classList.toggle('visible', currentPackId === 'catCafe');
 }
 
 function renderPackSelect() {
