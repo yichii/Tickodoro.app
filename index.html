@@ -83,6 +83,19 @@
       </div>
 
       <div class="header-icons">
+        <button id="stats-btn" class="stats-toggle" aria-label="Pomodoro history">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+            <rect x="3" y="3" width="4" height="4" rx="1"/>
+            <rect x="10" y="3" width="4" height="4" rx="1"/>
+            <rect x="17" y="3" width="4" height="4" rx="1"/>
+            <rect x="3" y="10" width="4" height="4" rx="1"/>
+            <rect x="10" y="10" width="4" height="4" rx="1"/>
+            <rect x="17" y="10" width="4" height="4" rx="1"/>
+            <rect x="3" y="17" width="4" height="4" rx="1"/>
+            <rect x="10" y="17" width="4" height="4" rx="1"/>
+            <rect x="17" y="17" width="4" height="4" rx="1"/>
+          </svg>
+        </button>
         <button id="settings-btn" class="settings-toggle" aria-label="Settings">⚙</button>
         <div class="volume-control">
           <button id="mute-toggle" class="mute-toggle" aria-pressed="false" aria-label="Mute ticking sound">
@@ -162,6 +175,18 @@
         <button type="submit" class="btn-primary">Save</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="stats-dialog" class="stats-dialog">
+    <div class="stats-dialog-inner">
+      <div class="stats-dialog-header">
+        <h2>Pomodoro History</h2>
+        <button type="button" id="stats-close-btn" class="dialog-close" aria-label="Close">×</button>
+      </div>
+      <div id="heatmap" class="heatmap" role="img" aria-label="Pomodoro activity over the last 12 weeks"></div>
+      <p id="stats-summary" class="stats-summary"></p>
+      <p id="heatmap-detail" class="heatmap-detail" aria-live="polite"></p>
+    </div>
   </dialog>
 
   <script src="app.js"></script>

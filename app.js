@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   muted: 'tickodoro.muted',
   volume: 'tickodoro.volume',
   stats: 'tickodoro.stats',
+  history: 'tickodoro.history',
   activeTask: 'tickodoro.activeTaskId',
   pack: 'tickodoro.pack'
 };
@@ -351,6 +352,7 @@ let volume = Math.max(0, Math.min(100, loadJSON(STORAGE_KEYS.volume, 100)));
 let tasks = loadJSON(STORAGE_KEYS.tasks, []);
 let activeTaskId = loadJSON(STORAGE_KEYS.activeTask, null);
 let stats = loadJSON(STORAGE_KEYS.stats, { date: todayKey(), count: 0 });
+let history = loadJSON(STORAGE_KEYS.history, {});
 
 const savedPackId = loadJSON(STORAGE_KEYS.pack, DEFAULT_PACK_ID);
 let currentPackId = THEME_PACKS[savedPackId] ? savedPackId : DEFAULT_PACK_ID;
@@ -366,9 +368,12 @@ tickEngine.setMuted(muted);
 tickEngine.setVolume(volume / 100);
 tickEngine.setParams(THEME_PACKS[currentPackId].tick);
 
-function todayKey() {
-  const d = new Date();
+function dateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function todayKey() {
+  return dateKey(new Date());
 }
 
 function ensureStatsFresh() {
@@ -412,6 +417,13 @@ const settingsForm = document.querySelector('.settings-form');
 const settingFocus = document.getElementById('setting-focus');
 const settingShort = document.getElementById('setting-short');
 const settingLong = document.getElementById('setting-long');
+
+const statsBtn = document.getElementById('stats-btn');
+const statsDialog = document.getElementById('stats-dialog');
+const statsCloseBtn = document.getElementById('stats-close-btn');
+const heatmapEl = document.getElementById('heatmap');
+const statsSummaryEl = document.getElementById('stats-summary');
+const heatmapDetailEl = document.getElementById('heatmap-detail');
 
 /* ---------------------------------------------------------------------- *
  *  Rendering
@@ -475,6 +487,61 @@ function renderVolume() {
 function renderStats() {
   ensureStatsFresh();
   dailyCountEl.textContent = String(stats.count);
+}
+
+/* ---------------------------------------------------------------------- *
+ *  Heatmap (12-week pomodoro history)
+ * ---------------------------------------------------------------------- */
+
+const HEATMAP_WEEKS = 12;
+const HEATMAP_LEVELS = 4;
+
+function buildHeatmapCells() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const rangeStart = new Date(today);
+  rangeStart.setDate(rangeStart.getDate() - (HEATMAP_WEEKS * 7 - 1));
+  rangeStart.setDate(rangeStart.getDate() - rangeStart.getDay()); // back up to the Sunday that starts this week
+
+  const cells = [];
+  const cursor = new Date(rangeStart);
+  while (cursor <= today) {
+    const key = dateKey(cursor);
+    cells.push({ date: new Date(cursor), key, count: history[key] || 0 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return cells;
+}
+
+function levelFor(count, maxCount) {
+  if (count <= 0 || maxCount <= 0) return 0;
+  return Math.max(1, Math.min(HEATMAP_LEVELS, Math.ceil((count / maxCount) * HEATMAP_LEVELS)));
+}
+
+function renderHeatmap() {
+  const cells = buildHeatmapCells();
+  const total = cells.reduce((sum, c) => sum + c.count, 0);
+  const maxCount = cells.reduce((max, c) => Math.max(max, c.count), 0);
+
+  heatmapDetailEl.textContent = '';
+
+  heatmapEl.innerHTML = '';
+  for (const cell of cells) {
+    const div = document.createElement('div');
+    div.className = 'heat-cell';
+    div.dataset.level = String(levelFor(cell.count, maxCount));
+    const label = `${cell.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}: ${cell.count} pomodoro${cell.count === 1 ? '' : 's'}`;
+    div.title = label;
+    div.dataset.label = label;
+    div.setAttribute('aria-label', label);
+    div.tabIndex = 0;
+    heatmapEl.appendChild(div);
+  }
+
+  statsSummaryEl.textContent = total === 0
+    ? 'No pomodoros yet — complete a focus session to start your history.'
+    : `${total} pomodoro${total === 1 ? '' : 's'} in the last ${HEATMAP_WEEKS} weeks`;
 }
 
 function renderTasks() {
@@ -587,6 +654,10 @@ function completeSession() {
     stats.count += 1;
     saveJSON(STORAGE_KEYS.stats, stats);
     renderStats();
+
+    const key = todayKey();
+    history[key] = (history[key] || 0) + 1;
+    saveJSON(STORAGE_KEYS.history, history);
 
     focusSessionsCompleted += 1;
     const activeTask = tasks.find((t) => t.id === activeTaskId);
@@ -837,6 +908,25 @@ settingsForm.addEventListener('submit', () => {
     remainingSeconds = settings[currentMode] * 60;
     renderCountdown();
   }
+});
+
+/* ---------------------------------------------------------------------- *
+ *  Event wiring — stats
+ * ---------------------------------------------------------------------- */
+
+statsBtn.addEventListener('click', () => {
+  renderHeatmap();
+  statsDialog.showModal();
+});
+
+statsCloseBtn.addEventListener('click', () => {
+  statsDialog.close();
+});
+
+heatmapEl.addEventListener('click', (e) => {
+  const cell = e.target.closest('.heat-cell');
+  if (!cell) return;
+  heatmapDetailEl.textContent = cell.dataset.label;
 });
 
 /* ---------------------------------------------------------------------- *
