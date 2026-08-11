@@ -183,6 +183,32 @@
         <h2>Pomodoro History</h2>
         <button type="button" id="stats-close-btn" class="dialog-close" aria-label="Close">×</button>
       </div>
+      <div class="stats-grid">
+        <div class="stat-tile">
+          <span class="stat-label">Pomodoros</span>
+          <span class="stat-value" id="stat-total">0</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">Best day</span>
+          <span class="stat-value" id="stat-best">0</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">Current streak</span>
+          <span class="stat-value" id="stat-streak">0</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">Active days</span>
+          <span class="stat-value" id="stat-active">0</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">Total minutes</span>
+          <span class="stat-value" id="stat-minutes">0</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">Longest streak</span>
+          <span class="stat-value" id="stat-longest-streak">0</span>
+        </div>
+      </div>
       <div id="heatmap" class="heatmap" role="img" aria-label="Pomodoro activity over the last 12 weeks"></div>
       <p id="stats-summary" class="stats-summary"></p>
       <p id="heatmap-detail" class="heatmap-detail" aria-live="polite"></p>

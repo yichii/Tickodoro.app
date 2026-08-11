@@ -424,6 +424,12 @@ const statsCloseBtn = document.getElementById('stats-close-btn');
 const heatmapEl = document.getElementById('heatmap');
 const statsSummaryEl = document.getElementById('stats-summary');
 const heatmapDetailEl = document.getElementById('heatmap-detail');
+const statTotalEl = document.getElementById('stat-total');
+const statBestEl = document.getElementById('stat-best');
+const statStreakEl = document.getElementById('stat-streak');
+const statActiveEl = document.getElementById('stat-active');
+const statMinutesEl = document.getElementById('stat-minutes');
+const statLongestStreakEl = document.getElementById('stat-longest-streak');
 
 /* ---------------------------------------------------------------------- *
  *  Rendering
@@ -519,10 +525,43 @@ function levelFor(count, maxCount) {
   return Math.max(1, Math.min(HEATMAP_LEVELS, Math.ceil((count / maxCount) * HEATMAP_LEVELS)));
 }
 
+// Consecutive days with at least one pomodoro, walking back from today.
+// Not limited to the 12-week window since a streak can run longer than that.
+function currentStreak() {
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  while ((history[dateKey(cursor)] || 0) > 0) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+// Longest run of consecutive active days within a chronologically ordered
+// cell list (buildHeatmapCells() already returns one entry per calendar day).
+function longestStreakIn(cells) {
+  let longest = 0;
+  let running = 0;
+  for (const cell of cells) {
+    running = cell.count > 0 ? running + 1 : 0;
+    longest = Math.max(longest, running);
+  }
+  return longest;
+}
+
 function renderHeatmap() {
   const cells = buildHeatmapCells();
   const total = cells.reduce((sum, c) => sum + c.count, 0);
   const maxCount = cells.reduce((max, c) => Math.max(max, c.count), 0);
+  const activeDays = cells.reduce((n, c) => n + (c.count > 0 ? 1 : 0), 0);
+
+  statTotalEl.textContent = String(total);
+  statBestEl.textContent = String(maxCount);
+  statStreakEl.textContent = String(currentStreak());
+  statActiveEl.textContent = String(activeDays);
+  statMinutesEl.textContent = String(total * settings.focus);
+  statLongestStreakEl.textContent = String(longestStreakIn(cells));
 
   heatmapDetailEl.textContent = '';
 
