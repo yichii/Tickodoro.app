@@ -411,6 +411,13 @@ const volumeSlider = document.getElementById('volume-slider');
 const dailyCountEl = document.getElementById('daily-count');
 const resumeAudioBtn = document.getElementById('resume-audio-btn');
 const catMascotEl = document.getElementById('cat-mascot');
+let catMascotAnim = null;
+let catMascotAssetKey = null;
+
+const CAT_MASCOT_ASSETS = {
+  play: 'assets/cat-play.json',
+  resting: 'assets/cat-resting.json',
+};
 
 const taskForm = document.getElementById('task-form');
 const taskInput = document.getElementById('task-input');
@@ -481,7 +488,34 @@ function applyTheme() {
   root.setProperty('--text-muted', pack.textMuted);
   root.setProperty('--card-bg', pack.cardBg);
   root.setProperty('--border', pack.border);
-  catMascotEl.classList.toggle('visible', currentPackId === 'catCafe');
+  updateCatMascot();
+}
+
+// Swaps the cat mascot between its resting and playing animations based on
+// whether a Pomodoro focus session is actively running.
+function updateCatMascot() {
+  const showCat = currentPackId === 'catCafe';
+  catMascotEl.classList.toggle('visible', showCat);
+  if (!showCat) {
+    if (catMascotAnim) catMascotAnim.pause();
+    return;
+  }
+
+  const desiredKey = currentMode === 'focus' && timerRunning ? 'play' : 'resting';
+  if (catMascotAnim && catMascotAssetKey === desiredKey) {
+    catMascotAnim.play();
+    return;
+  }
+
+  if (catMascotAnim) catMascotAnim.destroy();
+  catMascotAssetKey = desiredKey;
+  catMascotAnim = lottie.loadAnimation({
+    container: catMascotEl,
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    path: CAT_MASCOT_ASSETS[desiredKey],
+  });
 }
 
 function renderPackSelect() {
@@ -676,6 +710,7 @@ function startTimer() {
   }
 
   renderStartPauseButton();
+  updateCatMascot();
 }
 
 function pauseTimer() {
@@ -688,6 +723,7 @@ function pauseTimer() {
   remainingSeconds = Math.max(0, Math.round((endTimestamp - Date.now()) / 1000));
   renderCountdown();
   renderStartPauseButton();
+  updateCatMascot();
 }
 
 function resetTimer() {
@@ -699,6 +735,7 @@ function resetTimer() {
   remainingSeconds = settings[currentMode] * 60;
   renderCountdown();
   renderStartPauseButton();
+  updateCatMascot();
 }
 
 function completeSession() {
