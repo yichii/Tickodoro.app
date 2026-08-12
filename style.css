@@ -45,7 +45,7 @@ body {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
 }
 
@@ -53,6 +53,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .app {
@@ -484,6 +485,8 @@ body {
 
 .pack-picker {
   position: relative;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .pack-picker-label {
@@ -511,6 +514,8 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.2s ease;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .pack-picker-btn:hover {
@@ -534,6 +539,7 @@ body {
 
 .pack-picker-value {
   max-width: 130px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -597,6 +603,10 @@ body {
     height: 36px;
     padding: 0 10px;
     font-size: 0.8rem;
+  }
+
+  .pack-picker-value {
+    max-width: 90px;
   }
 
   .mute-toggle, .settings-toggle, .stats-toggle {
