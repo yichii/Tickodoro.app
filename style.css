@@ -118,6 +118,17 @@ body {
   display: block;
 }
 
+.cat-mascot-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 350ms ease;
+}
+
+.cat-mascot-layer.active {
+  opacity: 1;
+}
+
 .countdown {
   font-family: "SF Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
   font-size: 5rem;

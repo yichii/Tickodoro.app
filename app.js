@@ -411,13 +411,23 @@ const volumeSlider = document.getElementById('volume-slider');
 const dailyCountEl = document.getElementById('daily-count');
 const resumeAudioBtn = document.getElementById('resume-audio-btn');
 const catMascotEl = document.getElementById('cat-mascot');
-let catMascotAnim = null;
-let catMascotAssetKey = null;
 
 const CAT_MASCOT_ASSETS = {
   play: 'assets/cat-play.json',
   resting: 'assets/cat-resting.json',
 };
+const CAT_MASCOT_CROSSFADE_MS = 350;
+
+// Two stacked layers so switching animations can crossfade instead of
+// hard-cutting: the incoming asset fades in on the idle layer while the
+// outgoing one fades out, then the outgoing layer's animation is destroyed.
+const catMascotLayers = [0, 1].map(() => {
+  const el = document.createElement('div');
+  el.className = 'cat-mascot-layer';
+  catMascotEl.appendChild(el);
+  return { el, anim: null, key: null, cleanupTimer: null };
+});
+let catMascotActiveLayer = 0;
 
 const taskForm = document.getElementById('task-form');
 const taskInput = document.getElementById('task-input');
@@ -492,30 +502,59 @@ function applyTheme() {
 }
 
 // Swaps the cat mascot between its resting and playing animations based on
-// whether a Pomodoro focus session is actively running.
+// whether a Pomodoro focus session is actively running, crossfading between
+// the two layered Lottie instances instead of hard-cutting.
 function updateCatMascot() {
   const showCat = currentPackId === 'catCafe';
   catMascotEl.classList.toggle('visible', showCat);
   if (!showCat) {
-    if (catMascotAnim) catMascotAnim.pause();
+    catMascotLayers.forEach((layer) => layer.anim && layer.anim.pause());
     return;
   }
 
   const desiredKey = currentMode === 'focus' && timerRunning ? 'play' : 'resting';
-  if (catMascotAnim && catMascotAssetKey === desiredKey) {
-    catMascotAnim.play();
+  const activeLayer = catMascotLayers[catMascotActiveLayer];
+  if (activeLayer.key === desiredKey) {
+    if (activeLayer.anim) activeLayer.anim.play();
     return;
   }
 
-  if (catMascotAnim) catMascotAnim.destroy();
-  catMascotAssetKey = desiredKey;
-  catMascotAnim = lottie.loadAnimation({
-    container: catMascotEl,
+  const inactiveIndex = 1 - catMascotActiveLayer;
+  const incomingLayer = catMascotLayers[inactiveIndex];
+
+  // Reusing this layer mid-fade (rapid toggling) — drop whatever it was
+  // about to show and cancel its pending teardown.
+  if (incomingLayer.cleanupTimer) {
+    clearTimeout(incomingLayer.cleanupTimer);
+    incomingLayer.cleanupTimer = null;
+  }
+  if (incomingLayer.anim) incomingLayer.anim.destroy();
+
+  incomingLayer.key = desiredKey;
+  incomingLayer.anim = lottie.loadAnimation({
+    container: incomingLayer.el,
     renderer: 'svg',
     loop: true,
     autoplay: true,
     path: CAT_MASCOT_ASSETS[desiredKey],
   });
+
+  incomingLayer.el.classList.add('active');
+  activeLayer.el.classList.remove('active');
+  catMascotActiveLayer = inactiveIndex;
+
+  if (activeLayer.cleanupTimer) clearTimeout(activeLayer.cleanupTimer);
+  activeLayer.cleanupTimer = setTimeout(() => {
+    activeLayer.cleanupTimer = null;
+    // Only tear down if this layer is still the outgoing one — it may have
+    // been swapped back to active again before the fade finished.
+    if (activeLayer.el.classList.contains('active')) return;
+    if (activeLayer.anim) {
+      activeLayer.anim.destroy();
+      activeLayer.anim = null;
+    }
+    activeLayer.key = null;
+  }, CAT_MASCOT_CROSSFADE_MS);
 }
 
 function renderPackSelect() {
