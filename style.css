@@ -156,6 +156,23 @@ body {
   transform: scale(0.97);
 }
 
+.resume-audio-btn {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin-top: 14px;
+  cursor: pointer;
+}
+
+.resume-audio-btn[hidden] {
+  display: none;
+}
+
 .session-stats {
   font-size: 0.9rem;
   color: var(--text-muted);

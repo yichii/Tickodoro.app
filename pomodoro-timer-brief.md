@@ -79,3 +79,18 @@ Ship themes and tick sounds as curated **paired presets**, not independent mix-a
 
 ### Implementation note
 Each pack should be a single config object (CSS variable set + filter/envelope params) so switching is a matter of swapping one object, not touching component logic. No new audio assets needed — every pack reuses the same synthesis engine from the MVP, just different parameters.
+
+---
+
+## Backgrounding / Screen-Lock Behavior
+
+Locking or sleeping the screen during a focus session suspends (and on some mobile browsers, fully closes) the `AudioContext`, and freezes or throttles the display's `setInterval` loop. Both timer and tick recover on `visibilitychange` instead of requiring a page reload:
+
+| Situation | Recovery |
+|---|---|
+| **Countdown display** | Remaining time is never derived from interval fire counts — it's always `endTimestamp - Date.now()`. On regaining visibility, this is recomputed and re-rendered immediately, before anything audio-related runs, so the number on screen is correct even if it was stale for minutes. |
+| **Session ended while backgrounded** | If the recomputed remaining time is ≤ 0, the normal end-of-session flow (mode switch, stats/history update) fires immediately, exactly as if the countdown had reached zero in the foreground. |
+| **AudioContext `suspended`** | Resumed via `.resume()` on visibility regain — no user gesture required for a resume of an already-created context. |
+| **AudioContext `closed`/dead** | Not silently recreated (browsers block context creation without a gesture). A small "Tap to resume ticking" button appears; tapping it creates a fresh `AudioContext` inside that click handler and hands it to the tick engine. |
+| **Tick scheduling after any recovery path** | The scheduler's lookahead clock is re-anchored to "now" (`resyncAfterBackground()`) rather than left to catch up — otherwise the lookahead loop would try to fire every tick that "should" have happened while backgrounded, producing a burst of ticks instead of a clean resume. |
+| **Scope guard** | Ticking only resumes if the session is still an active, unmuted focus session by the time visibility returns — if it switched to a break or ended while backgrounded, it stays silent. |

@@ -203,9 +203,22 @@ class TickEngine {
     this._silenceImmediately();
   }
 
+  // Called after regaining visibility (or after a fresh AudioContext is
+  // swapped in). Re-anchors the schedule to "now" instead of letting the
+  // lookahead loop try to fire every tick that would have happened while
+  // backgrounded — that catch-up burst is the bug, not a feature. Tick/tock
+  // alternation just continues from wherever tickCount left off.
+  resyncAfterBackground() {
+    if (!this.audioCtx || !this.running) return;
+    this.nextTickTime = this.audioCtx.currentTime + 0.05;
+    if (this.schedulerId === null) {
+      this._scheduleLoop();
+    }
+  }
+
   _scheduleLoop() {
     const tick = () => {
-      if (!this.running || !this.audioCtx) return;
+      if (!this.running || !this.audioCtx || this.audioCtx.state === 'closed') return;
       while (this.nextTickTime < this.audioCtx.currentTime + this.SCHEDULE_AHEAD_TIME) {
         this._playTick(this.nextTickTime, this.tickCount % 2 === 0);
         this.tickCount++;
@@ -396,6 +409,7 @@ const modeTabs = Array.from(document.querySelectorAll('.mode-tab'));
 const muteToggle = document.getElementById('mute-toggle');
 const volumeSlider = document.getElementById('volume-slider');
 const dailyCountEl = document.getElementById('daily-count');
+const resumeAudioBtn = document.getElementById('resume-audio-btn');
 const catMascotEl = document.getElementById('cat-mascot');
 
 const taskForm = document.getElementById('task-form');
@@ -669,6 +683,7 @@ function pauseTimer() {
   timerRunning = false;
   stopDisplayLoop();
   tickEngine.stop();
+  hideResumeAudioBtn();
   remainingSeconds = Math.max(0, Math.round((endTimestamp - Date.now()) / 1000));
   renderCountdown();
   renderStartPauseButton();
@@ -678,6 +693,7 @@ function resetTimer() {
   timerRunning = false;
   stopDisplayLoop();
   tickEngine.stop();
+  hideResumeAudioBtn();
   remainingSeconds = settings[currentMode] * 60;
   renderCountdown();
   renderStartPauseButton();
@@ -687,6 +703,7 @@ function completeSession() {
   timerRunning = false;
   stopDisplayLoop();
   tickEngine.stop();
+  hideResumeAudioBtn();
 
   if (currentMode === 'focus') {
     ensureStatsFresh();
@@ -747,9 +764,75 @@ modeTabs.forEach((tab) => {
     timerRunning = false;
     stopDisplayLoop();
     tickEngine.stop();
+    hideResumeAudioBtn();
     setMode(tab.dataset.mode);
     renderStartPauseButton();
   });
+});
+
+/* ---------------------------------------------------------------------- *
+ *  Event wiring — visibility recovery
+ *
+ *  Locking/sleeping the screen suspends (or, on some mobile browsers,
+ *  closes) the AudioContext and freezes/throttles setInterval callbacks.
+ *  Neither the countdown nor the ticking sound should stay wrong once the
+ *  tab is visible again.
+ * ---------------------------------------------------------------------- */
+
+function showResumeAudioBtn() {
+  resumeAudioBtn.hidden = false;
+}
+
+function hideResumeAudioBtn() {
+  resumeAudioBtn.hidden = true;
+}
+
+function handleVisibilityRegain() {
+  // Timer state first: recompute remaining time from the stored end
+  // timestamp and re-render before touching audio at all, so display and
+  // sound never disagree about where the session stands.
+  if (timerRunning && endTimestamp !== null) {
+    const remainingMs = endTimestamp - Date.now();
+    remainingSeconds = Math.max(0, Math.round(remainingMs / 1000));
+    renderCountdown();
+    if (remainingMs <= 0) {
+      completeSession();
+      return;
+    }
+  }
+
+  // Only resume ticking if we're still in an active, unmuted focus session.
+  if (!timerRunning || currentMode !== 'focus' || muted || !audioCtx) {
+    return;
+  }
+
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().then(() => {
+      tickEngine.resyncAfterBackground();
+      hideResumeAudioBtn();
+    }).catch(() => {
+      showResumeAudioBtn();
+    });
+  } else if (audioCtx.state === 'closed') {
+    showResumeAudioBtn();
+  } else if (audioCtx.state === 'running') {
+    tickEngine.resyncAfterBackground();
+    hideResumeAudioBtn();
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    handleVisibilityRegain();
+  }
+});
+
+// The one gesture-driven path allowed to recreate a dead AudioContext.
+resumeAudioBtn.addEventListener('click', () => {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  tickEngine.init(audioCtx);
+  tickEngine.resyncAfterBackground();
+  hideResumeAudioBtn();
 });
 
 muteToggle.addEventListener('click', () => {
@@ -759,6 +842,7 @@ muteToggle.addEventListener('click', () => {
   renderMute();
   if (muted) {
     tickEngine.stop();
+    hideResumeAudioBtn();
   } else if (timerRunning && currentMode === 'focus' && audioCtx) {
     tickEngine.start();
   }
