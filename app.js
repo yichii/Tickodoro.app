@@ -684,6 +684,7 @@ function pauseTimer() {
   stopDisplayLoop();
   tickEngine.stop();
   hideResumeAudioBtn();
+  teardownAudioContext();
   remainingSeconds = Math.max(0, Math.round((endTimestamp - Date.now()) / 1000));
   renderCountdown();
   renderStartPauseButton();
@@ -694,6 +695,7 @@ function resetTimer() {
   stopDisplayLoop();
   tickEngine.stop();
   hideResumeAudioBtn();
+  teardownAudioContext();
   remainingSeconds = settings[currentMode] * 60;
   renderCountdown();
   renderStartPauseButton();
@@ -704,6 +706,7 @@ function completeSession() {
   stopDisplayLoop();
   tickEngine.stop();
   hideResumeAudioBtn();
+  teardownAudioContext();
 
   if (currentMode === 'focus') {
     ensureStatsFresh();
@@ -736,20 +739,31 @@ function completeSession() {
  *  Event wiring — timer
  * ---------------------------------------------------------------------- */
 
+// Closes out whatever AudioContext exists (if any) and detaches it from the
+// tick engine. iOS can leave a locked-screen AudioContext in a state
+// (`interrupted`, or silently `closed`) that doesn't reliably respond to
+// `.resume()` later, so rather than trying to detect and repair it we just
+// discard it — every "start" gesture builds a guaranteed-fresh one instead.
+function teardownAudioContext() {
+  if (audioCtx) {
+    try { audioCtx.close(); } catch (e) { /* already closing/closed */ }
+  }
+  audioCtx = null;
+  tickEngine.init(null);
+}
+
 startPauseBtn.addEventListener('click', () => {
   if (timerRunning) {
     pauseTimer();
     return;
   }
 
-  // AudioContext must be created (or resumed) synchronously inside this
-  // click handler — the one true user gesture that starts the timer.
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    tickEngine.init(audioCtx);
-  } else if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
+  // Always start from a brand-new AudioContext, created synchronously
+  // inside this click handler — the one true user gesture. We don't try to
+  // reuse or resume a previous context here; see teardownAudioContext().
+  teardownAudioContext();
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  tickEngine.init(audioCtx);
 
   startTimer();
 });
@@ -765,6 +779,7 @@ modeTabs.forEach((tab) => {
     stopDisplayLoop();
     tickEngine.stop();
     hideResumeAudioBtn();
+    teardownAudioContext();
     setMode(tab.dataset.mode);
     renderStartPauseButton();
   });
@@ -806,19 +821,35 @@ function handleVisibilityRegain() {
     return;
   }
 
+  if (audioCtx.state === 'running') {
+    tickEngine.resyncAfterBackground();
+    hideResumeAudioBtn();
+    return;
+  }
+
   if (audioCtx.state === 'suspended') {
+    // Try the silent path first — it's fine on desktop and most Android
+    // browsers. iOS Safari, though, can leave a locked-screen context
+    // (`interrupted`, or resume()-that-silently-never-resolves-to-`running`)
+    // in a state that doesn't reliably recover this way, so we don't trust
+    // it blindly: re-check the state after the attempt and fall back to the
+    // explicit tap affordance whenever it isn't confirmed `running`.
     audioCtx.resume().then(() => {
-      tickEngine.resyncAfterBackground();
-      hideResumeAudioBtn();
+      if (audioCtx && audioCtx.state === 'running') {
+        tickEngine.resyncAfterBackground();
+        hideResumeAudioBtn();
+      } else {
+        showResumeAudioBtn();
+      }
     }).catch(() => {
       showResumeAudioBtn();
     });
-  } else if (audioCtx.state === 'closed') {
-    showResumeAudioBtn();
-  } else if (audioCtx.state === 'running') {
-    tickEngine.resyncAfterBackground();
-    hideResumeAudioBtn();
+    return;
   }
+
+  // `closed`, Safari's nonstandard `interrupted`, or anything else — none
+  // of these can be repaired without a fresh user gesture.
+  showResumeAudioBtn();
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -829,6 +860,7 @@ document.addEventListener('visibilitychange', () => {
 
 // The one gesture-driven path allowed to recreate a dead AudioContext.
 resumeAudioBtn.addEventListener('click', () => {
+  teardownAudioContext();
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   tickEngine.init(audioCtx);
   tickEngine.resyncAfterBackground();
