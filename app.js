@@ -206,32 +206,55 @@ class TickEngine {
   }
 
   // Called after regaining visibility (or after a fresh AudioContext is
-  // swapped in). Re-anchors the schedule to "now" instead of letting the
-  // lookahead loop try to fire every tick that would have happened while
-  // backgrounded — that catch-up burst is the bug, not a feature. Tick/tock
-  // alternation just continues from wherever tickCount left off.
+  // swapped in). IMPORTANT: a tab-drag fires visibilitychange repeatedly —
+  // sometimes several times a second for the whole duration of the drag,
+  // not once at the end — so this must NOT unconditionally reset the
+  // schedule on every call. Doing that once caused ticks to fire at the
+  // resync rate (every ~100-200ms) instead of once a second, which sounded
+  // exactly like the overlap bug it was meant to fix. Only a scheduler with
+  // no loop yet (brand-new AudioContext) gets an unconditional anchor;
+  // an already-running schedule only gets touched if it's genuinely
+  // drifted, via the same capped-catchup check the loop itself uses.
   resyncAfterBackground() {
     if (!this.audioCtx || !this.running) return;
-    if (TickEngine.DEBUG) {
-      console.debug('[tick-debug] resyncAfterBackground', {
-        visibilityState: document.visibilityState,
-        audioState: this.audioCtx.state,
-        currentTime: this.audioCtx.currentTime,
-        nextTickTime: this.nextTickTime,
-        lag: this.audioCtx.currentTime - this.nextTickTime
-      });
-    }
-    this._snapForward();
     if (this.schedulerId === null) {
+      this._snapForward();
       this._scheduleLoop();
+      return;
     }
+    this._capCatchUpIfStalled();
   }
 
   // Re-anchors nextTickTime to "now + a small buffer", discarding whatever
   // backlog of missed ticks had built up. Shared by the visibilitychange
   // handler and by the scheduler loop's own catch-up check below.
   _snapForward() {
+    this._cancelPendingTicks();
     this.nextTickTime = this.audioCtx.currentTime + this.RESYNC_BUFFER;
+  }
+
+  // Web Audio's noise.start(time)/osc.start(time) calls are irrevocable
+  // once made — earlier scheduler-loop iterations may have already
+  // committed ticks up to SCHEDULE_AHEAD_TIME seconds into the future.
+  // Simply resetting nextTickTime doesn't stop those already-scheduled
+  // nodes from firing at their original (now-stale) times, so without this
+  // they'd play on top of the freshly-scheduled ticks — the actual source
+  // of the overlap, not the catch-up while-loop. Cancel anything that
+  // hasn't started sounding yet (tracked via record.time); nodes already
+  // mid-playback are left alone so we don't clip audible ticks.
+  _cancelPendingTicks() {
+    const now = this.audioCtx.currentTime;
+    for (const record of this.activeNodes.slice()) {
+      if (record.time > now) {
+        for (const v of record.voices) {
+          try {
+            v.gain.gain.cancelScheduledValues(now);
+            v.gain.gain.setValueAtTime(0, now);
+          } catch (e) { /* ignore */ }
+          try { v.source.stop(now); } catch (e) { /* already stopped or never started */ }
+        }
+      }
+    }
   }
 
   // If the scheduler loop itself was stalled (e.g. setInterval/rAF throttled
@@ -243,24 +266,15 @@ class TickEngine {
   _capCatchUpIfStalled() {
     const lag = this.audioCtx.currentTime - this.nextTickTime;
     if (lag > this.MAX_CATCHUP_LAG) {
-      if (TickEngine.DEBUG) {
-        console.debug('[tick-debug] capCatchUp triggered from scheduler loop', { lag, currentTime: this.audioCtx.currentTime });
-      }
       this._snapForward();
     }
   }
 
   _scheduleLoop() {
     const tick = () => {
-      if (TickEngine.DEBUG) {
-        console.debug('[tick-debug] loop iteration', { t: performance.now(), audioState: this.audioCtx && this.audioCtx.state });
-      }
       if (!this.running || !this.audioCtx || this.audioCtx.state === 'closed') return;
       this._capCatchUpIfStalled();
       while (this.nextTickTime < this.audioCtx.currentTime + this.SCHEDULE_AHEAD_TIME) {
-        if (TickEngine.DEBUG) {
-          console.debug('[tick-debug] scheduling tick', { scheduledAt: this.nextTickTime, currentTime: this.audioCtx.currentTime, wallClock: performance.now() });
-        }
         this._playTick(this.nextTickTime, this.tickCount % 2 === 0);
         this.tickCount++;
         this.nextTickTime += this.TICK_INTERVAL;
@@ -294,7 +308,7 @@ class TickEngine {
       voices.push(this._makeNoiseVoice(ctx, time, isTick, p));
     }
 
-    const record = { voices };
+    const record = { voices, time };
     this.activeNodes.push(record);
     const cleanup = () => {
       const idx = this.activeNodes.indexOf(record);
@@ -388,10 +402,6 @@ class TickEngine {
     this.activeNodes = [];
   }
 }
-
-// TEMPORARY diagnostic switch while tracking down the tab-drag overlap bug —
-// flip to false (or delete the console.debug calls above) once resolved.
-TickEngine.DEBUG = true;
 
 const tickEngine = new TickEngine();
 let audioCtx = null;
@@ -974,9 +984,6 @@ function handleVisibilityRegain() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (TickEngine.DEBUG) {
-    console.debug('[tick-debug] visibilitychange', { visibilityState: document.visibilityState, t: performance.now() });
-  }
   if (document.visibilityState === 'visible') {
     handleVisibilityRegain();
   }
