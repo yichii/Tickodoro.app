@@ -212,6 +212,15 @@ class TickEngine {
   // alternation just continues from wherever tickCount left off.
   resyncAfterBackground() {
     if (!this.audioCtx || !this.running) return;
+    if (TickEngine.DEBUG) {
+      console.debug('[tick-debug] resyncAfterBackground', {
+        visibilityState: document.visibilityState,
+        audioState: this.audioCtx.state,
+        currentTime: this.audioCtx.currentTime,
+        nextTickTime: this.nextTickTime,
+        lag: this.audioCtx.currentTime - this.nextTickTime
+      });
+    }
     this._snapForward();
     if (this.schedulerId === null) {
       this._scheduleLoop();
@@ -232,16 +241,26 @@ class TickEngine {
   // back in one burst. Snapping forward instead trades those missed ticks
   // for a clean resume at the normal one-tick-per-second cadence.
   _capCatchUpIfStalled() {
-    if (this.audioCtx.currentTime - this.nextTickTime > this.MAX_CATCHUP_LAG) {
+    const lag = this.audioCtx.currentTime - this.nextTickTime;
+    if (lag > this.MAX_CATCHUP_LAG) {
+      if (TickEngine.DEBUG) {
+        console.debug('[tick-debug] capCatchUp triggered from scheduler loop', { lag, currentTime: this.audioCtx.currentTime });
+      }
       this._snapForward();
     }
   }
 
   _scheduleLoop() {
     const tick = () => {
+      if (TickEngine.DEBUG) {
+        console.debug('[tick-debug] loop iteration', { t: performance.now(), audioState: this.audioCtx && this.audioCtx.state });
+      }
       if (!this.running || !this.audioCtx || this.audioCtx.state === 'closed') return;
       this._capCatchUpIfStalled();
       while (this.nextTickTime < this.audioCtx.currentTime + this.SCHEDULE_AHEAD_TIME) {
+        if (TickEngine.DEBUG) {
+          console.debug('[tick-debug] scheduling tick', { scheduledAt: this.nextTickTime, currentTime: this.audioCtx.currentTime, wallClock: performance.now() });
+        }
         this._playTick(this.nextTickTime, this.tickCount % 2 === 0);
         this.tickCount++;
         this.nextTickTime += this.TICK_INTERVAL;
@@ -369,6 +388,10 @@ class TickEngine {
     this.activeNodes = [];
   }
 }
+
+// TEMPORARY diagnostic switch while tracking down the tab-drag overlap bug —
+// flip to false (or delete the console.debug calls above) once resolved.
+TickEngine.DEBUG = true;
 
 const tickEngine = new TickEngine();
 let audioCtx = null;
@@ -951,6 +974,9 @@ function handleVisibilityRegain() {
 }
 
 document.addEventListener('visibilitychange', () => {
+  if (TickEngine.DEBUG) {
+    console.debug('[tick-debug] visibilitychange', { visibilityState: document.visibilityState, t: performance.now() });
+  }
   if (document.visibilityState === 'visible') {
     handleVisibilityRegain();
   }
