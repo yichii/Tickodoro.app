@@ -54,10 +54,60 @@
   }
 }
 </script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is Tickodoro free to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Tickodoro is completely free, with no sign-up, account, or installation required. It runs directly in your browser."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What makes Tickodoro different from other Pomodoro timers?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Tickodoro plays a hypnotic, analog wall-clock ticking sound during focus sessions, synthesized live with the Web Audio API rather than a looped audio file. It also offers six paired theme and tick-sound packs, per-task pomodoro estimates, and a 12-week activity heatmap."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Tickodoro store or upload my data?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Tickodoro has no backend or account system. Your tasks, settings, and history are saved only in your browser's local storage and never leave your device."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I change the default 25/5/15 minute timer lengths?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Focus, short break, and long break durations are all configurable from the settings menu."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does the ticking sound play during breaks?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No, the ticking sound is scoped to focus sessions only and stays silent during short and long breaks. It can also be muted or volume-adjusted at any time."
+      }
+    }
+  ]
+}
+</script>
 </head>
 <body data-mode="focus">
 
   <div class="page">
+    <h1 class="visually-hidden">Tickodoro — Pomodoro Timer with a Hypnotic Ticking Clock</h1>
     <header class="app-header">
       <div class="pack-picker">
         <span class="pack-picker-label" id="pack-picker-label">Pack</span>

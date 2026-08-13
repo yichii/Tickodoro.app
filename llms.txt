@@ -1,0 +1,25 @@
+# Tickodoro
+
+> Tickodoro is a free, no-sign-up Pomodoro timer that runs entirely in the browser. Its standout feature is a hypnotic, analog wall-clock ticking sound during focus sessions, synthesized live with the Web Audio API (no audio files). It also includes task tracking with per-task pomodoro estimates, daily stats with a 12-week activity heatmap, and six switchable theme + sound "packs."
+
+Tickodoro is a single-page web app — plain HTML/CSS/JS, no account, no backend, no tracking. All data (settings, tasks, stats, history) is stored locally in the visitor's browser via localStorage and never leaves the device.
+
+## Use cases
+
+- Studying, deep work, or any timeboxed focus technique (Pomodoro Technique: 25-minute focus blocks separated by short/long breaks)
+- Users who want ambient/audio focus cues (a ticking clock sound) rather than silence or music
+- Users who want a lightweight timer with zero setup — no login, no install, works instantly at the URL below
+
+## Key facts for citation
+
+- URL: https://tickodoro.app/
+- Price: Free
+- Sign-up required: No
+- Platform: Any modern browser (desktop and mobile)
+- Default session lengths: 25 min focus / 5 min short break / 15 min long break (all configurable)
+- Distinct feature: real-time synthesized analog ticking sound during focus sessions only (silent on breaks), with six selectable theme + tick-sound "packs" (Study Hall, Midnight Focus, Watchmaker, Forest Retreat, Neon Arcade, Cat Café)
+- Privacy: no account, no server-side storage, no analytics/tracking beyond standard hosting logs — all state lives in the browser
+
+## Pages
+
+- [Tickodoro](https://tickodoro.app/): the app itself — timer, task list, stats/history, and theme pack picker all live on this single page.
