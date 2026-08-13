@@ -163,6 +163,8 @@ class TickEngine {
     this.LOOKAHEAD_MS = 25;
     this.SCHEDULE_AHEAD_TIME = 1.2; // seconds; must exceed background-tab throttle interval
     this.TICK_INTERVAL = 1.0; // seconds between ticks
+    this.MAX_CATCHUP_LAG = 1.5; // seconds; beyond this we snap forward instead of bursting
+    this.RESYNC_BUFFER = 0.075; // seconds; how far ahead of "now" a snap lands
   }
 
   // Must be called with an AudioContext created inside a user-gesture
@@ -210,15 +212,35 @@ class TickEngine {
   // alternation just continues from wherever tickCount left off.
   resyncAfterBackground() {
     if (!this.audioCtx || !this.running) return;
-    this.nextTickTime = this.audioCtx.currentTime + 0.05;
+    this._snapForward();
     if (this.schedulerId === null) {
       this._scheduleLoop();
+    }
+  }
+
+  // Re-anchors nextTickTime to "now + a small buffer", discarding whatever
+  // backlog of missed ticks had built up. Shared by the visibilitychange
+  // handler and by the scheduler loop's own catch-up check below.
+  _snapForward() {
+    this.nextTickTime = this.audioCtx.currentTime + this.RESYNC_BUFFER;
+  }
+
+  // If the scheduler loop itself was stalled (e.g. setInterval/rAF throttled
+  // while the tab was dragged between windows) for longer than
+  // MAX_CATCHUP_LAG, nextTickTime can fall far behind audioCtx.currentTime.
+  // Left alone, the while-loop below would fire every missed tick back to
+  // back in one burst. Snapping forward instead trades those missed ticks
+  // for a clean resume at the normal one-tick-per-second cadence.
+  _capCatchUpIfStalled() {
+    if (this.audioCtx.currentTime - this.nextTickTime > this.MAX_CATCHUP_LAG) {
+      this._snapForward();
     }
   }
 
   _scheduleLoop() {
     const tick = () => {
       if (!this.running || !this.audioCtx || this.audioCtx.state === 'closed') return;
+      this._capCatchUpIfStalled();
       while (this.nextTickTime < this.audioCtx.currentTime + this.SCHEDULE_AHEAD_TIME) {
         this._playTick(this.nextTickTime, this.tickCount % 2 === 0);
         this.tickCount++;
